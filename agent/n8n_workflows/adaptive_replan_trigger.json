@@ -1,0 +1,59 @@
+{
+  "name": "Adaptive Replan After Low Performance",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "performance-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Performance Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "performance-low-score"
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $json;\nconst score = data.score || 0;\nif (score < 40) {\n  return [{ json: { ...data, action: 'replan', severity: 'critical' } }];\n} else if (score < 60) {\n  return [{ json: { ...data, action: 'adjust', severity: 'moderate' } }];\n}\nreturn [];"
+      },
+      "name": "Check Score Threshold",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://backend:8000/api/v1/plan/{{ $json.plan_id }}/complete-day",
+        "method": "POST",
+        "bodyParametersUi": {
+          "parameter": [
+            {"name": "user_id", "value": "={{ $json.user_id }}"},
+            {"name": "day", "value": "={{ $json.day }}"},
+            {"name": "performance", "value": "={{ $json }}"}
+          ]
+        }
+      },
+      "name": "Trigger Adaptive Replan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'adapted', plan_id: $json.plan_id, action: $('Check Score Threshold').item.json.action } }}"
+      },
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Performance Webhook": {"main": [[{"node": "Check Score Threshold", "type": "main", "index": 0}]]},
+    "Check Score Threshold": {"main": [[{"node": "Trigger Adaptive Replan", "type": "main", "index": 0}]]},
+    "Trigger Adaptive Replan": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  },
+  "active": true
+}

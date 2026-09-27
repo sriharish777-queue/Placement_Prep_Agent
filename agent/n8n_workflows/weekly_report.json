@@ -1,0 +1,71 @@
+{
+  "name": "Weekly Performance Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "name": "Every Monday 9AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/auth/users/active",
+        "method": "GET"
+      },
+      "name": "Get Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://backend:8000/api/v1/performance/readiness/{{ $json.id }}",
+        "method": "GET"
+      },
+      "name": "Get Readiness Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://backend:8000/api/v1/performance/weakness/{{ $json.user_id }}",
+        "method": "GET"
+      },
+      "name": "Get Weakness Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@placement-prep.ai",
+        "toEmail": "={{ $('Get Users').item.json.email }}",
+        "subject": "Your Weekly Placement Prep Report 📊",
+        "html": "=<div style='font-family:sans-serif;max-width:600px;margin:0 auto'><div style='background:linear-gradient(135deg,#667eea,#764ba2);padding:30px;border-radius:12px 12px 0 0'><h1 style='color:white;margin:0'>Weekly Report 📊</h1><p style='color:#e0d7ff;margin:8px 0 0'>Your placement prep progress this week</p></div><div style='padding:24px'><h2>Overall Readiness: {{ $('Get Readiness Score').item.json.overall_score }}%</h2><h3>Areas to Focus This Week:</h3><ul>{{ $('Get Weakness Report').item.json.weak_topics.map(t => '<li>' + t + '</li>').join('') }}</ul><a href='http://localhost:3000/dashboard' style='display:block;text-align:center;background:#667eea;color:white;padding:14px;border-radius:8px;text-decoration:none;font-weight:600'>View Full Dashboard →</a></div></div>",
+        "options": {}
+      },
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Every Monday 9AM": {"main": [[{"node": "Get Users", "type": "main", "index": 0}]]},
+    "Get Users": {"main": [[{"node": "Get Readiness Score", "type": "main", "index": 0}]]},
+    "Get Readiness Score": {"main": [[{"node": "Get Weakness Report", "type": "main", "index": 0}]]},
+    "Get Weakness Report": {"main": [[{"node": "Send Weekly Report", "type": "main", "index": 0}]]}
+  },
+  "active": true
+}

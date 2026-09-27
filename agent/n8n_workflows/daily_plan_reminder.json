@@ -1,0 +1,95 @@
+{
+  "name": "Daily Plan Reminder & Performance Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 8AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/auth/users/active",
+        "method": "GET",
+        "options": {}
+      },
+      "name": "Fetch Active Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const users = $input.all();\nconst items = [];\nfor (const user of users) {\n  items.push({ json: { user_id: user.json.id, email: user.json.email, name: user.json.name } });\n}\nreturn items;"
+      },
+      "name": "Extract User IDs",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://backend:8000/api/v1/dashboard/{{ $json.user_id }}",
+        "method": "GET",
+        "options": {}
+      },
+      "name": "Fetch Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $json;\nconst plan = data.active_plan;\nif (!plan) return [];\nreturn [{\n  json: {\n    user_id: $('Extract User IDs').item.json.user_id,\n    email: $('Extract User IDs').item.json.email,\n    name: $('Extract User IDs').item.json.name,\n    day: plan.current_day,\n    focus: plan.today_focus.join(', '),\n    tasks: plan.today_tasks_count,\n    progress: plan.overall_progress,\n    readiness: data.readiness?.overall_score || 0\n  }\n}];"
+      },
+      "name": "Build Reminder Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@placement-prep.ai",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Day {{ $json.day }} Practice Reminder — {{ $json.focus }}",
+        "html": "=<div style='font-family:sans-serif;max-width:600px;margin:0 auto'><div style='background:linear-gradient(135deg,#667eea,#764ba2);padding:30px;border-radius:12px 12px 0 0'><h1 style='color:white;margin:0'>Good morning, {{ $json.name }}! 🎯</h1></div><div style='padding:24px;background:#f9fafb;border-radius:0 0 12px 12px'><p style='font-size:16px;color:#374151'>Today is <strong>Day {{ $json.day }}</strong> of your placement preparation journey.</p><div style='background:white;border-radius:8px;padding:20px;margin:16px 0;border-left:4px solid #667eea'><h3 style='margin:0 0 8px;color:#1f2937'>Today's Focus Areas</h3><p style='margin:0;color:#6b7280;font-size:15px'>{{ $json.focus }}</p></div><div style='display:flex;gap:12px;margin:16px 0'><div style='flex:1;background:#ede9fe;border-radius:8px;padding:16px;text-align:center'><div style='font-size:24px;font-weight:bold;color:#7c3aed'>{{ $json.tasks }}</div><div style='font-size:12px;color:#6d28d9'>Tasks Today</div></div><div style='flex:1;background:#d1fae5;border-radius:8px;padding:16px;text-align:center'><div style='font-size:24px;font-weight:bold;color:#059669'>{{ $json.progress }}%</div><div style='font-size:12px;color:#047857'>Plan Progress</div></div><div style='flex:1;background:#fef3c7;border-radius:8px;padding:16px;text-align:center'><div style='font-size:24px;font-weight:bold;color:#d97706'>{{ $json.readiness }}%</div><div style='font-size:12px;color:#b45309'>Readiness Score</div></div></div><a href='http://localhost:3000/plan' style='display:block;text-align:center;background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:14px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:20px'>Start Today's Practice →</a></div></div>",
+        "options": {}
+      },
+      "name": "Send Email Reminder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Daily 8AM Trigger": {
+      "main": [[{"node": "Fetch Active Users", "type": "main", "index": 0}]]
+    },
+    "Fetch Active Users": {
+      "main": [[{"node": "Extract User IDs", "type": "main", "index": 0}]]
+    },
+    "Extract User IDs": {
+      "main": [[{"node": "Fetch Dashboard", "type": "main", "index": 0}]]
+    },
+    "Fetch Dashboard": {
+      "main": [[{"node": "Build Reminder Data", "type": "main", "index": 0}]]
+    },
+    "Build Reminder Data": {
+      "main": [[{"node": "Send Email Reminder", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
